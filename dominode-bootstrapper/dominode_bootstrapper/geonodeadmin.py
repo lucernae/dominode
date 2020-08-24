@@ -175,20 +175,59 @@ class GeoServerManager:
         )
 
     def list_workspaces(self):
-        raise NotImplementedError  # TODO: Provide implementation
+        response = self.client.get(
+            f'{self.base_url}/rest/workspaces',
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD)
+        )
+        return response.json()
 
-    def create_workspace(self):
-        raise NotImplementedError  # TODO: Provide implementation
+    def create_workspace(self, name):
+        response = self.client.post(
+            f'{self.base_url}/rest/workspaces',
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD),
+            json={"name": name}
+        )
+        return response.json()
 
-    def create_postgis_store(self):
-        raise NotImplementedError  # TODO: Provide implementation
+    def get_workspace(self, name):
+        response = self.client.post(
+            f'{self.base_url}/rest/workspaces/{name}',
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD)
+        )
+        if response.status_code != 200:
+            return None
+        return response.json()
+
+    def create_postgis_store(self,
+                             workspace_name,
+                             store_name,
+                             host,
+                             port,
+                             database,
+                             user,
+                             password):
+        datastore = {
+           "name": store_name,
+           "connectionParameters": {
+              "host": host,
+              "port": port,
+              "database": database,
+              "user": user,
+              "passwd": password,
+              "dbtype": "postgis"
+           }
+        }
+        response = self.client.post(
+            f'{self.base_url}/rest/workspaces/{workspace_name}/datastores',
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD),
+            json=datastore
+        )
+        return response.json()
 
     def list_geofence_admin_rules(self) -> typing.List:
         response = self.client.get(
             f'{self.base_url}/rest/geofence/adminrules',
-            headers={
-                'Authorization': f'Bearer {self.access_token}'
-            }
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD)
         )
         response.raise_for_status()
         return response.json().get('rules', [])
@@ -204,7 +243,8 @@ class GeoServerManager:
         else:
             access = GeofenceAccess.USER
         response = self.client.post(
-            f'{self.base_url}/rest/geofence/adminrules/',
+            f'{self.base_url}/rest/geofence/adminrules',
+            auth=(DEFAULT_USERNAME, DEFAULT_PASSWORD),
             json={
                 'priority': 0,
                 'userName': _ANY,
@@ -321,8 +361,14 @@ def _bootstrap_department_in_geoserver(
     existing_workspaces = manager.list_workspaces()
     workspace_name = department.value
     workspace_exists = False
-    # TODO: check if the workspace that we want to create already exists and do not continue if it does
+
     # 1. create the workspace
+
+    workspace = manager.get_workspace(workspace_name)
+    if workspace is None:
+        manager.create_workspace(workspace_name)
+    else:
+        workspace_exists = True
 
     if not workspace_exists:
         # 2. create the geofence admin rules
@@ -333,3 +379,11 @@ def _bootstrap_department_in_geoserver(
             manager.create_geofence_admin_rule(
                 department.value, role_name, UserRole.EDITOR)
         # 3. create the postgis db store
+        # manager.create_postgis_store(
+        #     workspace_name,
+        #     "postgis_store",
+        #     "localhost",
+        #     5432,
+        #     db,
+        #     user,
+        #     password)
