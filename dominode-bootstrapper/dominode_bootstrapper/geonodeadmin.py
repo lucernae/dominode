@@ -162,7 +162,7 @@ class GeoServerManager:
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         }
-        self.base_url = base_url
+        self.base_url = f'{base_url}/geoserver'
         self.access_token = access_token
 
     @classmethod
@@ -188,7 +188,6 @@ class GeoServerManager:
             json={"name": name}
         )
         return response.json()
-
     def get_workspace(self, name):
         response = self.client.post(
             f'{self.base_url}/rest/workspaces/{name}',
@@ -268,6 +267,7 @@ def bootstrap(
     internal_group_name = 'dominode-internal'
     with httpx.Client() as client:
         geonode_manager = GeoNodeManager(client, base_url, username, password)
+        geoserver_manager = GeoServerManager(client, base_url)
         geonode_manager.login()
         existing_groups = geonode_manager.get_existing_groups()
         for department in DepartmentName:
@@ -275,12 +275,16 @@ def bootstrap(
                 geonode_manager,
                 department, [i['title'] for i in existing_groups]
             )
+            _bootstrap_department_in_geoserver(geoserver_manager, department)
         typer.echo(f'Creating group {internal_group_name!r}...')
         geonode_manager.create_group(
             internal_group_name,
             'A group for internal DomiNode users'
         )
         geonode_manager.logout()
+
+
+
     pass
 
 
